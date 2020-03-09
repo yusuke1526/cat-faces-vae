@@ -5,6 +5,11 @@ from kivy.uix.label import Label
 from kivy.uix.image import Image
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.widget import Widget
+from kivy.uix.textinput import TextInput
+from kivy.uix.checkbox import CheckBox
+from kivy.uix.button import Button
+from kivy.uix.colorpicker import ColorPicker
+from kivy.uix.stencilview import StencilView
 from kivy.graphics import Color, Rectangle
 from kivy.graphics.texture import Texture
 from kivy.properties import StringProperty, ObjectProperty
@@ -13,6 +18,8 @@ from model.models import load_model_and_weights
 from functions.data import fileRead
 import cv2
 
+Config.set('graphics', 'resizable', False)
+Config.set('input', 'mouse', 'mouse,disable_multitouch')
 
 class app(App):
     def build(self):
@@ -20,18 +27,16 @@ class app(App):
 
 class ImageWidget(Widget):
     rate = 6
+    color = [0, 0, 0]
     def __init__(self, **kwargs):
-        img = kwargs.get('img')
-        position = kwargs.get('position')
+        self.img = kwargs.get('img')
+        if type(self.img) is str:
+            self.img = fileRead(img)
+        self.img_size = self.img.shape[0]
+        self.img_mod = self.img.copy()
         del kwargs['img']
-        del kwargs['position']
         super(ImageWidget, self).__init__(**kwargs)
-        texture = self.image_to_texture(img)
-        print(self.pos)
-        position = [position*400, self.pos[0]]
-        print(position)
-        with self.canvas:
-            Rectangle(pos=position, size=texture.size, texture=texture)
+        self.update_image()
 
     def image_to_texture(self, img):
         img = (img * 255).astype(np.uint8)
@@ -41,21 +46,109 @@ class ImageWidget(Widget):
         texture.flip_vertical()
         return texture
 
+    def update_image(self):
+        texture = self.image_to_texture(self.img_mod)
+        with self.canvas:
+            Rectangle(pos=(0, 0), size=texture.size, texture=texture)
+
+    def mask_rectangle(self, x1, y1, x2, y2):
+        x1 = int(x1 / self.rate)
+        x2 = int(x2 / self.rate)
+        y1 = 64 - int(y1 / self.rate)
+        y2 = 64 - int(y2 / self.rate)
+
+        if (x1<0) | (x2>=self.img_size) | (y1<0) | (y2>=self.img_size):
+            return
+        if chbox.active:
+            for i in range(y1, y2):
+                for j in range(x1, x2):
+                    self.img_mod[i, j, :] = np.random.uniform(size=3)
+        else:
+            self.img_mod[y1:y2, x1:x2, :] = self.color
+        self.update_image()
+
+    def on_touch_down(self, touch):
+        self.x_start = touch.x
+        self.y_start = touch.y
+
+    def on_touch_move(self, touch):
+        self.mask_rectangle(self.x_start, self.y_start, touch.x, touch.y)
+
+    def on_touch_up(self, touch):
+        update_im2()
+
+
+def update_im2():
+    decoded = decoder.predict(encoder.predict(np.expand_dims(im1.img_mod, 0)))[0]
+    cv2.imwrite('.tmp.png', (cv2.cvtColor(decoded, cv2.COLOR_RGB2BGR)*255).astype(np.uint8))
+    im2.reload()
+
+def set_im1(num):
+    img = fileRead(f'src/{num}.jpg')
+    im1.img_mod = img.copy()
+    im1.img = img.copy()
+    im1.update_image()
+    update_im2()
+
+
+
+Window.size = (820, 820)
+
 encoder = load_model_and_weights('model/encoder_0108')
 decoder = load_model_and_weights('model/decoder_0108')
 
-root = BoxLayout(orientation='vertical')
-label = Label(text='test')
-label.size_hint = (1.0, 0.1)
-imageArea = BoxLayout(orientation='horizontal')
+# ボタンエリア
+def callback_reset_button(self):
+    im1.img_mod = im1.img.copy()
+    im1.update_image()
+    update_im2()
+
+button = Button(text='reset')
+button.bind(on_release=callback_reset_button)
+button.size_hint = (0.9, 1.0)
+
+def on_text(self, value):
+    set_im1(value)
+
+textinput = TextInput(text='1', multiline=False)
+textinput.bind(text=on_text)
+
+
+label = Label(text='random pattern')
+label.size_hint = (0.1, 1.0)
+
+chbox = CheckBox()
+chbox.size_hint = (0.1, 1.0)
+
+buttonArea = BoxLayout(orientation='horizontal')
+buttonArea.add_widget(button)
+buttonArea.add_widget(textinput)
+buttonArea.add_widget(label)
+buttonArea.add_widget(chbox)
+buttonArea.size_hint = (1.0, 0.1)
+
+# カラーピッカー
+def on_color(self, value):
+    im1.color = value[:3]
+
+clr_picker = ColorPicker()
+clr_picker.bind(color=on_color)
+
+# イメージエリア
 img = fileRead('src/1.jpg')
-decoded = decoder.predict(encoder.predict(np.expand_dims(img, 0)))[0]
-im1 = ImageWidget(img=img, position=0)
+im1 = ImageWidget(img=img)
+im2 = Image(source='.tmp.png', allow_stretch=True)
+set_im1(1)
+imageArea = BoxLayout(orientation='horizontal')
 imageArea.add_widget(im1)
-im2 = ImageWidget(img=decoded, position=1)
 imageArea.add_widget(im2)
-root.add_widget(label)
+
+# ルート
+root = BoxLayout(orientation='vertical')
+root.add_widget(clr_picker)
+root.add_widget(buttonArea)
 root.add_widget(imageArea)
+
 
 if __name__ == "__main__":
     app().run()
