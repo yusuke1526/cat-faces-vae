@@ -20,10 +20,19 @@ import cv2
 
 Config.set('graphics', 'resizable', False)
 Config.set('input', 'mouse', 'mouse,disable_multitouch')
+#Window.size = (820, 820)
 
-class app(App):
+class MainApp(App):
     def build(self):
         return root
+
+class RootLayout(BoxLayout):
+    def __init__(self, **kwargs):
+        super(RootLayout, self).__init__(**kwargs)
+        self.size = Window.size
+        with self.canvas.before:
+            Color(0.6, 0.6, 0.6, 1)
+            self.rect = Rectangle(size=self.size, pos=self.pos)
 
 class ImageWidget(Widget):
     rate = 6
@@ -52,6 +61,7 @@ class ImageWidget(Widget):
             Rectangle(pos=(0, 0), size=texture.size, texture=texture)
 
     def mask_rectangle(self, x1, y1, x2, y2):
+        # 座標を画像上の位置に変換
         x1 = int(x1 / self.rate)
         x2 = int(x2 / self.rate)
         y1 = 64 - int(y1 / self.rate)
@@ -80,7 +90,7 @@ class ImageWidget(Widget):
 
 def update_im2():
     decoded = decoder.predict(encoder.predict(np.expand_dims(im1.img_mod, 0)))[0]
-    cv2.imwrite('.tmp.png', (cv2.cvtColor(decoded, cv2.COLOR_RGB2BGR)*255).astype(np.uint8))
+    cv2.imwrite('src/.tmp.png', (cv2.cvtColor(decoded, cv2.COLOR_RGB2BGR)*255).astype(np.uint8))
     im2.reload()
 
 def set_im1(num):
@@ -90,10 +100,7 @@ def set_im1(num):
     im1.update_image()
     update_im2()
 
-
-
-Window.size = (820, 820)
-
+#モデルの読み込み
 encoder = load_model_and_weights('model/encoder_0108')
 decoder = load_model_and_weights('model/decoder_0108')
 
@@ -102,25 +109,25 @@ def callback_reset_button(self):
     im1.img_mod = im1.img.copy()
     im1.update_image()
     update_im2()
+    
+def on_text(self, value):
+    if value.isdecimal() & 0<int(value)<=100:
+        set_im1(value)
 
 button = Button(text='reset')
 button.bind(on_release=callback_reset_button)
-button.size_hint = (0.9, 1.0)
-
-def on_text(self, value):
-    set_im1(value)
 
 textinput = TextInput(text='1', multiline=False)
 textinput.bind(text=on_text)
 
-
 label = Label(text='random pattern')
-label.size_hint = (0.1, 1.0)
-
 chbox = CheckBox()
-chbox.size_hint = (0.1, 1.0)
 
 buttonArea = BoxLayout(orientation='horizontal')
+button.size_hint = (0.9, 1.0)
+textinput.size_hint = (0.1, 1.0)
+label.size_hint = (0.3, 1.0)
+chbox.size_hint = (0.1, 1.0)
 buttonArea.add_widget(button)
 buttonArea.add_widget(textinput)
 buttonArea.add_widget(label)
@@ -137,18 +144,21 @@ clr_picker.bind(color=on_color)
 # イメージエリア
 img = fileRead('src/1.jpg')
 im1 = ImageWidget(img=img)
-im2 = Image(source='.tmp.png', allow_stretch=True)
+im2 = Image(source='src/.tmp.png', allow_stretch=True)
 set_im1(1)
 imageArea = BoxLayout(orientation='horizontal')
 imageArea.add_widget(im1)
 imageArea.add_widget(im2)
 
 # ルート
-root = BoxLayout(orientation='vertical')
+root = RootLayout(orientation='vertical')
+clr_picker.size_hint_y = 0.3
+buttonArea.size_hint_y = 0.05
+imageArea.size_hint_y = 0.63
 root.add_widget(clr_picker)
 root.add_widget(buttonArea)
 root.add_widget(imageArea)
 
 
 if __name__ == "__main__":
-    app().run()
+    MainApp().run()
