@@ -89,7 +89,8 @@ class ImageWidget(Widget):
 
 
 def update_im2():
-    decoded = decoder.predict(encoder.predict(np.expand_dims(im1.img_mod, 0)))[0]
+    encoded = encoder.predict(np.expand_dims(im1.img_mod, 0))
+    decoded = decoder.predict(encoded[0])[0]
     cv2.imwrite('src/.tmp.png', (cv2.cvtColor(decoded, cv2.COLOR_RGB2BGR)*255).astype(np.uint8))
     im2.reload()
 
@@ -111,7 +112,7 @@ def callback_reset_button(self):
     update_im2()
     
 def on_text(self, value):
-    if value.isdecimal() & 0<int(value)<=100:
+    if value.isdecimal() and 0<int(value)<=100:
         set_im1(value)
 
 button = Button(text='reset')
